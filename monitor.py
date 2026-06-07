@@ -13,7 +13,27 @@ def parse_source(value):
     return int(value) if value.isdigit() else value
 
 
-def overlap_ratio(vehicle_box, slot_polygon):
+def bbox_overlap_ratio(vehicle_box, slot_polygon):
+    """Match the original demo: intersection / axis-aligned slot-box area."""
+    vehicle_x1, vehicle_y1, vehicle_x2, vehicle_y2 = vehicle_box
+    slot = np.asarray(slot_polygon, dtype=np.float32)
+    slot_x1, slot_y1 = slot.min(axis=0)
+    slot_x2, slot_y2 = slot.max(axis=0)
+
+    intersection_x1 = max(vehicle_x1, slot_x1)
+    intersection_y1 = max(vehicle_y1, slot_y1)
+    intersection_x2 = min(vehicle_x2, slot_x2)
+    intersection_y2 = min(vehicle_y2, slot_y2)
+    intersection = (
+        max(0.0, intersection_x2 - intersection_x1)
+        * max(0.0, intersection_y2 - intersection_y1)
+    )
+    slot_area = max(0.0, slot_x2 - slot_x1) * max(0.0, slot_y2 - slot_y1)
+    return float(intersection / slot_area) if slot_area > 0 else 0.0
+
+
+def polygon_overlap_ratio(vehicle_box, slot_polygon):
+    """Optional improvement: intersection / actual polygon area."""
     x1, y1, x2, y2 = vehicle_box
     vehicle_polygon = np.asarray(
         [[x1, y1], [x2, y1], [x2, y2], [x1, y2]],
@@ -25,6 +45,14 @@ def overlap_ratio(vehicle_box, slot_polygon):
         return 0.0
     intersection_area, _ = cv2.intersectConvexConvex(slot, vehicle_polygon)
     return float(intersection_area) / slot_area
+
+
+def overlap_ratio(vehicle_box, slot_polygon, mode="bbox"):
+    if mode == "bbox":
+        return bbox_overlap_ratio(vehicle_box, slot_polygon)
+    if mode == "polygon":
+        return polygon_overlap_ratio(vehicle_box, slot_polygon)
+    raise ValueError(f"Unsupported overlap mode: {mode}")
 
 
 def draw_summary(frame, total, occupied):
@@ -45,8 +73,14 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Run the smart parking monitor.")
     parser.add_argument("--source", default="0", help="Camera index or video path.")
     parser.add_argument("--model", default=str(config.MODEL_PATH))
+    parser.add_argument("--conf", type=float, default=config.CONFIDENCE_THRESHOLD)
     parser.add_argument("--refresh", type=float, default=config.SLOT_REFRESH_SECONDS)
-    parser.add_argument("--no-slot-refresh", action="store_true")
+    parser.add_argument(
+        "--overlap-mode",
+        choices=("bbox", "polygon"),
+        default="bbox",
+        help="bbox matches the original demo; polygon uses the actual ROI area.",
+    )
     return parser.parse_args()
 
 
@@ -69,8 +103,8 @@ def main():
             break
 
         now = time.monotonic()
-        should_refresh = not args.no_slot_refresh and now - last_slot_update >= args.refresh
-        if should_refresh or not slots:
+        should_refresh = args.refresh > 0 and now - last_slot_update >= args.refresh
+        if should_refresh:
             detected, _ = detect_slots(frame)
             if detected:
                 slots = detected
@@ -78,7 +112,7 @@ def main():
 
         display = frame.copy()
         overlay = frame.copy()
-        result = model(frame, conf=config.CONFIDENCE_THRESHOLD, verbose=False)[0]
+        result = model(frame, conf=args.conf, verbose=False)[0]
 
         vehicle_boxes = []
         for box in result.boxes:
@@ -92,7 +126,8 @@ def main():
         occupied_count = 0
         for slot_id, polygon in enumerate(slots, start=1):
             occupied = any(
-                overlap_ratio(vehicle_box, polygon) >= config.OCCUPANCY_THRESHOLD
+                overlap_ratio(vehicle_box, polygon, args.overlap_mode)
+                >= config.OCCUPANCY_THRESHOLD
                 for vehicle_box in vehicle_boxes
             )
             color = (0, 0, 255) if occupied else (0, 255, 0)
@@ -131,4 +166,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

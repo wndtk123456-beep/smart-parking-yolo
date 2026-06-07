@@ -30,9 +30,10 @@ Camera frame
   -> OpenCV monitoring screen
 ```
 
-주차면은 조명과 카메라 위치 변화에 대응하기 위해 기본 5초 간격으로 다시
-검출합니다. 주차면 번호는 화면의 위에서 아래, 같은 행에서는 왼쪽에서
-오른쪽 순으로 정렬합니다.
+원본 시연 코드는 `s` 키를 눌러 주차면을 갱신합니다. 공개본에서는 필요할
+때 `--refresh 5` 옵션으로 5초 간격 자동 갱신도 사용할 수 있습니다.
+주차면 번호는 화면의 위에서 아래, 같은 행에서는 왼쪽에서 오른쪽 순으로
+정렬합니다.
 
 ## 모델 학습
 
@@ -44,6 +45,9 @@ Camera frame
 | Epochs | 300 |
 | Classes | car, motorcycle |
 | Data split | Train 80% / Validation 20% |
+
+실시간 모니터의 기본 confidence는 원본 `cam.py` 설정과 같은 `0.30`입니다.
+`--conf 0.35`처럼 실행 시점에 변경할 수 있습니다.
 
 포함된 학습 로그의 마지막 기록(epoch 295)은 다음과 같습니다.
 
@@ -69,6 +73,10 @@ Camera frame
 ├── detect_slots.py
 ├── monitor.py
 ├── prepare_dataset.py
+├── slot_detection.py
+├── tests/
+│   └── test_logic.py
+├── tune_hsv.py
 ├── train.py
 └── slots.json
 ```
@@ -95,6 +103,19 @@ python monitor.py --source 0
 python monitor.py --source path/to/video.mp4
 ```
 
+원본과 동일한 사각형 중첩 방식이 기본값입니다. 실제 Polygon 면적을
+사용하려면 다음 옵션을 추가합니다.
+
+```bash
+python monitor.py --source 0 --overlap-mode polygon
+```
+
+주차면을 5초마다 자동으로 다시 검출하려면:
+
+```bash
+python monitor.py --source 0 --refresh 5
+```
+
 주차면만 다시 추출하려면:
 
 ```bash
@@ -113,10 +134,25 @@ python create_dataset_yaml.py
 python train.py
 ```
 
+## 원본 코드와 공개본의 관계
+
+| 원본 파일 | 공개본 | 처리 |
+|---|---|---|
+| `configgg.py` | `config.py` | 하드코딩 경로 제거 및 이름 정리 |
+| `convert_labelme_to_yolo.py` | `prepare_dataset.py` | 변환 규칙 유지 |
+| `make_yaml.py` | `create_dataset_yaml.py` | YAML 생성 규칙 유지 |
+| `train_yolo.py` | `train.py` | 640 / Batch 16 / Epoch 300 유지 |
+| `22222.py` | `slot_detection.py`, `detect_slots.py` | 잘못된 설정 import 수정 |
+| `cam.py` | `monitor.py` | 원본 bbox 중첩을 기본값으로 유지 |
+| `confirm.py` | `tune_hsv.py` | HSV Trackbar 조정 기능 유지 |
+
+공개본은 과거 파일을 그대로 복사한 보관본이 아니라, 원본의 기능과 설정을
+검증한 뒤 경로와 파일명을 정리한 포트폴리오용 리팩터링 버전입니다.
+`models/best.pt`는 원본 최종 가중치와 SHA-256 해시가 같습니다.
+
 ## 한계와 개선 방향
 
 - 고정 카메라와 특정 색상의 주차선에 맞춘 방식입니다.
 - 조명 변화가 크면 HSV 범위를 환경에 맞게 다시 조정해야 합니다.
 - 차량 위치와 촬영 각도에 따라 경계 부근의 점유 판정 오차가 발생할 수 있습니다.
 - 향후 주차면 검출 모델 또는 카메라 캘리브레이션을 적용할 수 있습니다.
-
