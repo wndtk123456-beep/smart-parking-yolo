@@ -134,21 +134,6 @@ python create_dataset_yaml.py
 python train.py
 ```
 
-## 원본 코드와 공개본의 관계
-
-| 원본 파일 | 공개본 | 처리 |
-|---|---|---|
-| `configgg.py` | `config.py` | 하드코딩 경로 제거 및 이름 정리 |
-| `convert_labelme_to_yolo.py` | `prepare_dataset.py` | 변환 규칙 유지 |
-| `make_yaml.py` | `create_dataset_yaml.py` | YAML 생성 규칙 유지 |
-| `train_yolo.py` | `train.py` | 640 / Batch 16 / Epoch 300 유지 |
-| `22222.py` | `slot_detection.py`, `detect_slots.py` | 잘못된 설정 import 수정 |
-| `cam.py` | `monitor.py` | 원본 bbox 중첩을 기본값으로 유지 |
-| `confirm.py` | `tune_hsv.py` | HSV Trackbar 조정 기능 유지 |
-
-공개본은 과거 파일을 그대로 복사한 보관본이 아니라, 원본의 기능과 설정을
-검증한 뒤 경로와 파일명을 정리한 포트폴리오용 리팩터링 버전입니다.
-`models/best.pt`는 원본 최종 가중치와 SHA-256 해시가 같습니다.
 
 ## 한계와 개선 방향
 
